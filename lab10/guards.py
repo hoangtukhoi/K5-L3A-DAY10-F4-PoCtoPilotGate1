@@ -33,10 +33,62 @@ from . import helpers as H  # noqa: F401
 from .tools import Verdict
 
 
+def _truth(ctx, order_id):
+    """Nguồn sự thật từ DB (không đọc chữ khách): (order, policy, parcel trễ nhất, số ngày trễ theo tracking, nguyên nhân)."""
+    order = ctx.tools.lookup_order(order_id)
+    policy = H.effective_policy(ctx.tools.lookup_policies(), ctx.as_of)
+    if not order or not order.get("parcels") or policy is None:
+        return None
+    worst = max(order["parcels"], key=lambda p: H.db_delay_days(p, ctx.as_of))
+    delay = H.db_delay_days(worst, ctx.as_of)
+    cause = worst.get("delay_cause") or ("CARRIER" if delay > 0 else None)
+    return order, policy, worst, delay, cause
+
+
 def pre_guard(ctx):
+    # Cổng 3 (kỹ thuật, drift chính sách): ghim phiên bản chính sách đang hiệu lực theo ngày, không tin cờ index_active.
+    policy = H.effective_policy(ctx.tools.lookup_policies(), ctx.as_of)
+    if policy is not None:
+        return Verdict.allow(policy_id=policy["policy_id"])
     return Verdict.allow()
 
 
 def write_gate(ctx, action):
     # action = {"tool": "issue_refund", "ticket_id":..., "order_id":..., "amount_vnd":..., "payer":..., ...}
+    tool = action.get("tool")
+
+    if tool == "issue_refund":
+        # Cổng 1: số tiền hoàn phải khớp quyền lợi tính từ DB + chính sách hiệu lực, người chi là LOGIX, không ghi trùng.
+        truth = _truth(ctx, action.get("order_id"))
+        if truth is None:
+            return Verdict.escalate("thiếu dữ liệu đơn hoặc chính sách hiệu lực, chuyển người duyệt")
+        order, policy, _worst, delay, cause = truth
+        if action.get("payer", "LOGIX") != "LOGIX":
+            return Verdict.escalate("khoản hoàn không do LogiX chi trả (shop/bên khác), chuyển người duyệt")
+        if ctx.tools.ledger_rows(order_id=order["order_id"], ticket_id=action.get("ticket_id")):
+            return Verdict.deny("ticket này đã có dòng hoàn cho đơn, chặn ghi trùng")
+        entitled = H.entitlement_vnd(policy, order, delay, cause)
+        amount = int(action.get("amount_vnd", 0))
+        if entitled <= 0:
+            return Verdict.deny("tracking DB: đơn chưa đủ điều kiện hoàn theo chính sách hiệu lực")
+        if amount != entitled:
+            return Verdict.modify("số tiền khác quyền lợi tính từ DB, sửa về quyền lợi", amount_vnd=entitled)
+
+    if tool == "file_carrier_fault":
+        # Cổng 2: chỉ ghi lỗi hãng khi DB xác nhận trễ thật và có nguyên nhân thuộc danh sách của chính sách;
+        # ghi đúng kiện trễ nhất theo DB (không phải kiện đầu tiên) và số ngày theo tracking.
+        truth = _truth(ctx, action.get("order_id"))
+        if truth is None:
+            return Verdict.deny("thiếu dữ liệu đơn hoặc chính sách hiệu lực, không ghi lỗi hãng")
+        _order, policy, worst, delay, _cause = truth
+        if not H.carrier_at_fault(policy, worst, delay):
+            return Verdict.deny("tracking DB: không đủ ngày trễ hoặc nguyên nhân không thuộc hãng, không ghi lỗi hãng")
+        fixes = {}
+        if action.get("parcel_id") != worst["parcel_id"]:
+            fixes.update(parcel_id=worst["parcel_id"], carrier_id=worst["carrier_id"], driver_id=worst.get("driver_id"))
+        if action.get("delay_days") != delay:
+            fixes["delay_days"] = delay
+        if fixes:
+            return Verdict.modify("sửa theo kiện trễ nhất và số ngày trong tracking DB", **fixes)
+
     return Verdict.allow()
