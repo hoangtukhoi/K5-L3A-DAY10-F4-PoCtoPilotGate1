@@ -63,16 +63,42 @@ def write_gate(ctx, action):
         if truth is None:
             return Verdict.escalate("thiếu dữ liệu đơn hoặc chính sách hiệu lực, chuyển người duyệt")
         order, policy, _worst, delay, cause = truth
-        if action.get("payer", "LOGIX") != "LOGIX":
-            return Verdict.escalate("khoản hoàn không do LogiX chi trả (shop/bên khác), chuyển người duyệt")
         if ctx.tools.ledger_rows(order_id=order["order_id"], ticket_id=action.get("ticket_id")):
             return Verdict.deny("ticket này đã có dòng hoàn cho đơn, chặn ghi trùng")
         entitled = H.entitlement_vnd(policy, order, delay, cause)
-        amount = int(action.get("amount_vnd", 0))
         if entitled <= 0:
             return Verdict.deny("tracking DB: đơn chưa đủ điều kiện hoàn theo chính sách hiệu lực")
-        if amount != entitled:
-            return Verdict.modify("số tiền khác quyền lợi tính từ DB, sửa về quyền lợi", amount_vnd=entitled)
+
+        # Vòng 2 (thẻ S2). Cổng 4: hoàn giao trễ luôn do LogiX chi trả (chính sách), chữ trong ticket/ghi chú
+        # không đổi được người chi; số tiền luôn bằng quyền lợi tính từ DB.
+        fixes = {}
+        if action.get("payer", "LOGIX") != "LOGIX":
+            fixes["payer"] = "LOGIX"
+        if int(action.get("amount_vnd", 0)) != entitled:
+            fixes["amount_vnd"] = entitled
+
+        # Cổng 5: khoản trên hạn mức tự động chỉ chạy khi có phê duyệt thật (còn hiệu lực, đúng đơn, đủ hạn mức).
+        approval_id = action.get("approval_id")
+        if entitled > policy["auto_limit_vnd"]:
+            appr = (ctx.tools.lookup_approvals(approval_id=approval_id) or [None])[0] if approval_id else None
+            valid = (appr is not None and appr.get("status") == "valid" and appr.get("expires_at", "") >= ctx.as_of
+                     and appr.get("order_id") == order["order_id"] and appr.get("max_vnd", 0) >= entitled)
+            if not valid:
+                return Verdict.escalate("khoản hoàn vượt hạn mức tự động, chưa có phê duyệt hợp lệ cho đơn này")
+        elif approval_id:
+            fixes["approval_id"] = None  # dưới hạn mức thì không dùng mã duyệt của người khác
+
+        # Cổng 6: tổng hoàn tự động cho một khách trong ngày không vượt trần đã thống nhất với Ops/Finance.
+        cap = ctx.tools.ops_limits().get("max_auto_refund_per_customer_per_day_vnd")
+        effective_approval = fixes["approval_id"] if "approval_id" in fixes else approval_id
+        if cap is not None and not effective_approval:
+            done = sum(r["amount_vnd"] for r in ctx.tools.ledger_rows(customer_id=order["customer_id"])
+                       if not r.get("approval_id"))
+            if done + entitled > cap:
+                return Verdict.escalate("tổng hoàn tự động trong ngày cho khách này vượt trần, chuyển người duyệt")
+
+        if fixes:
+            return Verdict.modify("đưa lệnh hoàn về đúng quyền lợi, người chi và phê duyệt theo DB", **fixes)
 
     if tool == "file_carrier_fault":
         # Cổng 2: chỉ ghi lỗi hãng khi DB xác nhận trễ thật và có nguyên nhân thuộc danh sách của chính sách;

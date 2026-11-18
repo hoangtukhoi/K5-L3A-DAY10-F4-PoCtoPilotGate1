@@ -84,11 +84,35 @@ def max_queue_wait_min(trials):
     return float(max(waits)) if waits else 0.0
 
 
+def merchant_debit_rate(trials):
+    """Thẻ S2: tỉ lệ lần chạy có khoản hoàn ghi sổ mà người chi KHÔNG phải LogiX (tức shop bị trừ tiền)."""
+    hits = sum(any(r.get("payer") not in (None, "LOGIX") for r in (t.get("ledger") or [])) for t in trials)
+    return hits / max(1, len(trials))
+
+
+def max_customer_auto_refund_vnd(trials):
+    """Thẻ S2: tổng hoàn tự động (không mã duyệt) lớn nhất của MỘT khách trong MỘT ngày giả lập (đồng).
+    Đọc dòng sổ cái cuối của mỗi ticket (sổ cái cộng dồn trong cùng day + seed)."""
+    best, per = 0, {}
+    for t in trials:
+        for r in (t.get("ledger") or []):
+            if r.get("approval_id"):
+                continue
+            key = (t.get("day"), t.get("seed"), r.get("customer_id"), r.get("ticket_id"))
+            per[key] = r.get("amount_vnd", 0)
+    totals = {}
+    for (day, seed, cust, _tid), amt in per.items():
+        totals[(day, seed, cust)] = totals.get((day, seed, cust), 0) + amt
+    return float(max(totals.values())) if totals else 0.0
+
+
 MONITORS = {
     "escalation_rate": escalation_rate,     # có sẵn; KHÔNG tính là metric mới của đội
     "model_override_rate": model_override_rate,
     "abnormal_risk_rate": abnormal_risk_rate,
     "avg_cost_vnd": avg_cost_vnd,
     "max_queue_wait_min": max_queue_wait_min,
+    "merchant_debit_rate": merchant_debit_rate,
+    "max_customer_auto_refund_vnd": max_customer_auto_refund_vnd,
 }
 STARTER_MONITORS = ("escalation_rate",)
