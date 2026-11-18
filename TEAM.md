@@ -5,7 +5,7 @@
 - Tên nhóm (`TenNhom`, không dấu, không khoảng trắng): `F4`
 - Lớp: `L3A`
 - Repo của bàn: `K5-L3A-DAY10-F4-PoCtoPilotGate1`
-- Thẻ sự cố đã bốc (S1–S8):
+- Thẻ sự cố đã bốc (S1–S8): `S2`
 
 ## Thành viên
 
@@ -88,16 +88,28 @@ Mỗi thành viên tự viết một mục bên dưới (chép mẫu, đổi ti�
 
 ### Phần việc phụ trách
 
-Vai trong bàn; câu nào của đề, mục nào của phiếu A/B/C, file nào (`lab10/guards.py`, `config/operating_gates.json`, …).
+- **Vai trong bàn:** Trưởng nhóm và Kỹ sư cổng A (`N1`): dựng repo và Git, ký tiêu chí, chạy các lệnh đo, viết cổng trong `lab10/guards.py`, chốt cổng vòng 1, làm thẻ S2 ở vòng 2, gom bài nộp.
+- **Câu của đề và mục phiếu:**
+  - **Phiếu A:** mục A5 (ký và đẩy tiêu chí), soát lại `config/acceptance_criteria.json` trước khi ký.
+  - **Phiếu B:** B0 và B1 (câu 2.1, lần chạy baseline), B7.1 (câu 2.6, ba cổng trong `guards.py`), B7.2 (câu 2.7), B8 (chốt cổng vòng 1 và quyết định v1).
+  - **Phiếu C:** C0 (nhật ký lần chạy), C3.1 (mức kiểm soát của con người, thẻ S2), C4 (HAZOP của thẻ), C7 (bảng sửa), C12 (quyết định v2 và ba dòng bắt buộc).
+  - **Code và config:** `lab10/guards.py` (`pre_guard`, `write_gate`), `lab10/monitors.py` (hai chỉ số `merchant_debit_rate` và `max_customer_auto_refund_vnd`), `config/operating_gates.json` (`business.pilot_scope`), `submission/submission.json`.
 
 ### Đóng góp cụ thể
 
-...
+- Vòng 1: chạy baseline (`R-base-before-20261118-154353-bde05c`), thấy hoàn oan 20.000đ và 1 lỗi hãng oan do ca `T-002@55`. Viết ba cổng: `write_gate` cho `issue_refund` (đối chiếu quyền lợi tính từ tracking DB và chính sách hiệu lực), `write_gate` cho `file_carrier_fault` (chỉ ghi khi DB xác nhận hãng có lỗi, ghi đúng kiện trễ nhất), và `pre_guard` ghim phiên bản chính sách theo ngày. Chốt cổng bằng `lab10.checkpoint` (`e1770907`) và viết quyết định v1 là Tiếp tục trong phạm vi HN và HCM.
+- Vòng 2 (thẻ S2, shop bị trừ tiền): dò trace `S2-01@11`, `S2-20@11`, `S2-04@11`, `S2-43@11` và tìm ra bốn nguyên nhân khác nhau: ghi chú giả danh lệnh trong ticket, ghi chú gài ở `checkout_note`, directive làm agent bỏ qua phê duyệt, và không có trần hoàn theo khách mỗi ngày. Sửa trong `write_gate`: ép người chi về LogiX và số tiền về quyền lợi theo DB, khoản trên hạn mức chỉ chạy khi có phê duyệt thật (còn hạn, đúng đơn, đủ hạn mức), và thêm trần 300.000đ mỗi khách mỗi ngày.
+- Thấy cổng vòng 1 chuyển 80% ca sang người duyệt nên chi phí vượt làm tay. Mỗi lần chỉ đổi một thứ: sửa cổng trước, rồi mở `pilot_scope` thêm kho DN và CT, rồi thêm monitor. Kết quả mốc after: chi phí 7.273đ, ROI 0,37, độ phủ 1,0, hoàn sai 0đ.
+- Gom bài nộp bằng `lab10.check_submission --collect` đến khi báo `ĐỦ THÀNH PHẦN`, và push lên `main`.
+
 
 ### Bằng chứng
 
-Mã commit, mã lần chạy (`runs/<mã>`), dòng trong phiếu.
+- Commit: `62960af` (chốt cổng vòng 1, quyết định v1), `27a5f20` (thẻ S2, sửa vòng 2, quyết định v2), `1ac0b0d` (phiếu A, B, C và bài nộp); commit ký tiêu chí là `8cd9ce5`.
+- Mã lần chạy: base `R-base-before-20261118-154353-bde05c`; prepared `R-base-prepared-20261118-163339-e10dfb`; thẻ S2 base `R-S2-before-20261118-164740-510194`, prepared `R-S2-prepared-20261118-164740-510194`, after `R-S2-after-20261118-164740-510194`; grade `R-S2-grade-20261118-164740-510194`.
+- Dòng trong phiếu: B0, B1, B7.1, B7.2, B8 (`templates/form-b-evaluation-gates.md`); C0, C3.1, C4, C7, C12 (`templates/form-c-incident.md`).
 
 ### Exit ticket
 
-Một điều học được, một điều còn chưa chắc.
+- **Một điều học được:** Cổng bằng code lấy giá trị từ nguồn sự thật (tracking DB, chính sách) rồi sửa lệnh ghi về đúng giá trị hiệu quả hơn là chặn và chuyển người. Cổng vòng 1 chặn hết tiền sai nhưng đẩy 80% ca sang người duyệt, làm chi phí vượt làm tay. Khi chuyển sang sửa `payer` và số tiền, chi phí mỗi ticket giảm từ 20.645đ xuống 7.273đ mà tiền sai vẫn bằng 0.
+- **Một điều còn chưa chắc:** Cổng chỉ đúng khi tracking DB đúng, và cổng đang coi LogiX luôn là bên chi trả. Nếu hợp đồng thật với một số shop quy định shop chịu phí, hoặc điểm phát nhập sai `delay_cause`, cổng này sẽ hoàn sai người chi mà không báo. Bộ kiểm tra ẩn và chính sách `REFUND-v4` (hiệu lực 2026-12-01) cũng chưa được thử.

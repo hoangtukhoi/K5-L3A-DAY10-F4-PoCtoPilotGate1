@@ -2,16 +2,6 @@
 
 **Bàn: K5-L3A-DAY10-F4-PoCtoPilotGate1** · **Người cầm bút chính: Le Quang Linh** vai Sản phẩm và kinh doanh (câu 1.3: Kỹ sư cổng; câu 1.2, 1.4: Vận hành và pháp lý)
 
-Điền phiếu này **trước khi chạy trợ lý lần nào**. Viết xong thì chép ngưỡng sang `config/acceptance_criteria.json`, ký ở phút 60–65,
-rồi mới chạy đánh giá. Khối 1 không sửa code.
-
-**Mục lục**
-- [A1 · Mục tiêu (câu 1.1, 1.2) · phút 15–20](#a1)
-- [A2 · Thước đo → Dữ liệu → Cách tính (câu 1.3, 1.4) · phút 20–35](#a2)
-- [A3 · Đọc một kết quả có khoảng tin cậy (câu 1.5) · phút 35–40](#a3)
-- [A4 · Câu tiêu chí thành công và ranh giới đầu ra (câu 1.6) · phút 40–60](#a4)
-- [A5 · Ký và đẩy tiêu chí · phút 60–65](#a5)
-
 ---
 
 <a id="a1"></a>
@@ -52,7 +42,7 @@ rồi mới chạy đánh giá. Khối 1 không sửa code.
 
 ### Câu 1.5 · Chọn MỘT kết luận và giải thích một câu
 
-Số minh hoạ trong đề (không phải số của bàn). Khoanh: **(b)** *(Chưa đủ căn cứ nói Y tốt hơn X; chênh 1 lần chạy nằm trong khoảng tin cậy của X)*
+Chọn **(b)**: chưa đủ căn cứ nói Y tốt hơn X; chênh 1 lần chạy nằm trong khoảng tin cậy của X.
 
 Giải thích một câu: Vì `pass_rate` của bản Y ($1,0$ trên 50/50 lần chạy) nằm hoàn toàn bên trong khoảng tin cậy 95% của bản X ($[0,9400; 1,0]$), mức chênh lệch 0,02 (đúng 1/50 lần chạy, tương tự giới hạn cỡ mẫu đã nêu ở `docs/PRD_v1.1.md` §6 và `docs/eval_card.md`) chưa đủ ý nghĩa thống kê để khẳng định Y thực sự tốt hơn X mà hoàn toàn có thể chỉ do phương sai lấy mẫu ngẫu nhiên.
 
@@ -91,9 +81,9 @@ Giải thích một câu: Vì `pass_rate` của bản Y ($1,0$ trên 50/50 lần
 
 #### Bước 3 · Chốt và hẹn ngày xem lại
 
-- Bản cuối của từng câu → đã chép **ngưỡng** vào `required` / `nice_to_have` / `business_ops`, chép **hành động** vào `decision_rule` và `stop_condition` trong `config/acceptance_criteria.json`.
+- Ngưỡng đã chép vào `required`, `nice_to_have`, `business_ops` và hành động đã chép vào `decision_rule`, `stop_condition` trong `config/acceptance_criteria.json`.
 - Nhóm `business_ops`: `cost_per_ticket_vnd_max` **8500** · `roi_min` **0.15** · `queue_stuck_max` **0**
-- Ngày xem lại tiêu chí: **[NGÀY HẸN XEM LẠI, VD: 2026-11-23]** · Ai dự: **Sản phẩm & Kinh doanh, Kỹ sư cổng, Vận hành & Pháp lý (NV-TUNG, NV-HANH, NV-OANH)**
+- Ngày xem lại tiêu chí: **2026-11-25** · Ai dự: **Sản phẩm và kinh doanh, Kỹ sư cổng, Vận hành và pháp lý (NV-TUNG, NV-HANH, NV-OANH)**
 
 ---
 
@@ -101,18 +91,8 @@ Giải thích một câu: Vì `pass_rate` của bản Y ($1,0$ trên 50/50 lần
 
 ## A5 · Ký và đẩy tiêu chí (phút 60–65)
 
-Soát lại `config/acceptance_criteria.json` lần cuối (tên bàn ở `team`, người ký ở `signed_by`, đủ ngưỡng, `decision_rule`,
-`stop_condition`), rồi chạy **trước khi chạy đánh giá lần nào**:
-
-```bash
-python3 -m lab10.criteria sign
-git add config/acceptance_criteria.json config/acceptance_criteria.lock && git commit -m 'Sign acceptance criteria' && git push -u origin main
-```
-
 | Mục | Điền |
 |---|---|
-| Đã ký lúc (giờ máy in hoặc `signed_at` trong `config/acceptance_criteria.lock`) |2026-11-18T15:24:54|
-| Mã commit `Sign acceptance criteria` (7 ký tự đầu, `git log --oneline -1`) |8cd9ce5|
+| Đã ký lúc | 2026-11-18T15:24:54 |
+| Mã commit `Sign acceptance criteria` | 8cd9ce5 |
 | Đã push lên `origin main` thành công? | có |
-
-Sau bước này **không sửa** `config/acceptance_criteria.json`, kể cả mở rồi lưu lại bằng trình soạn thảo tự định dạng.

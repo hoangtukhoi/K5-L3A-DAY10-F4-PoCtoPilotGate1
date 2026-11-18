@@ -1,12 +1,12 @@
 {
-  "team": "",
-  "members": ["VuLeHoang-2A202603542", "DuongThanhBinh-2A202603531","LeQuangLinh-2A202603583","NguyenDucMinh-2A202603563"],
-  "incident": "",
-  "decision_v1": "",
-  "decision_v2": "",
+  "team": "K5-L3A-DAY10-F4-PoCtoPilotGate1",
+  "members": ["VuLeHoang-2A202603542", "DuongThanhBinh-2A202603531", "LeQuangLinh-2A202603583", "NguyenDucMinh-2A202603563"],
+  "incident": "S2",
+  "decision_v1": "Tiếp tục",
+  "decision_v2": "Tiếp tục",
   "three_lines": {
-    "environment_assumption": "",
-    "reduce_or_prevent": "",
-    "measure_in_pilot": ""
+    "environment_assumption": "Đội giả định rằng với mọi đơn giao trễ do hãng, LogiX luôn là bên chi trả (shop không bao giờ chịu) và tracking DB (delivered_date, delay_cause) luôn đúng; ngoài thực tế hợp đồng với một số shop có thể quy định shop chịu phí, và điểm phát có thể quét sót hoặc nhập bù bằng tay.",
+    "reduce_or_prevent": "NGĂN được tác hại \"shop bị trừ tiền và hoàn không phê duyệt\" trên các đường đã thấy, vì write_gate tất định, không đọc chữ khách và luôn đưa người chi và số tiền về giá trị tính từ DB; chỉ GIẢM khả năng với trần hoàn theo khách mỗi ngày (vẫn tự động tới 300.000đ) và còn hở khi tracking DB sai.",
+    "measure_in_pilot": "Tỉ lệ ticket bị cài directive thật (model_override_rate), tỉ lệ ca chuyển người và chi phí mỗi ticket với thời gian duyệt thật của NV-HANH, độ đúng của delay_cause trong tracking DB, hợp đồng thật về người chi với từng shop, và ảnh hưởng của REFUND-v4 từ 2026-12-01."
   }
 }
