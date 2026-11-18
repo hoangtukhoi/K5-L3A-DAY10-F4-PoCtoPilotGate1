@@ -48,12 +48,12 @@ trợ lý có đang gây thiệt hại cho bên ngoài LogiX không; không có 
 
 | | Offline, cho MỘT bước (câu 1.3) | Telemetry production (câu 1.4) |
 |---|---|---|
-| **Bước / hành vi được đo** | | |
-| **Thước đo** (một câu, có đơn vị) | | |
-| **Dữ liệu** (lấy ở đâu, bao nhiêu, ai gán nhãn) | | |
-| **Cách tính** (công thức, mẫu số, cách xử lý ca thiếu dữ liệu) | | |
-| **Khung thời gian / ngưỡng báo động** | (không áp dụng) | |
-| **Điểm mù** (thước đo này KHÔNG thấy gì) | | |
+| **Bước / hành vi được đo** | Bước **ghi lỗi hãng vận chuyển** (`file_carrier_fault` ở bước 6 của agent) | Hành vi **ghi lỗi phạt đối tác vận chuyển (`file_carrier_fault`), trừ tiền shop (`payer == "MERCHANT"`) và gửi thông báo ra bên ngoài (`notify_carrier`)** trong vận hành thực tế |
+| **Thước đo** (một câu, có đơn vị) | Tỉ lệ lần chạy có ghi lỗi hãng (`file_carrier_fault`) nhưng bị sai đối tượng hãng/kiện hoặc sai điều kiện chính sách so với nhãn chuẩn (đơn vị: tỉ lệ thuộc $[0, 1]$, kèm số lỗi hãng oan tuyệt đối `wrongful_carrier_faults` trên 110 lần chạy) | Số lỗi ghi cho cùng một hãng vận chuyển trong ngày ($\text{strikes/carrier/day}$), số bút toán sổ cái trừ tiền shop (`payer == "MERCHANT"`), và tỉ lệ thông báo gửi hãng chứa trường dữ liệu cá nhân của người nhận hoặc không khớp `db_delay_days` trong tracking DB (đơn vị: số lần/ngày hoặc tỉ lệ/giờ) |
+| **Dữ liệu** (lấy ở đâu, bao nhiêu, ai gán nhãn) | Bảng `fault_rows` (hoặc sự kiện `tool: file_carrier_fault` trong `runs/<mã lần chạy>/traces/*.json`) đối chiếu với nhãn chuẩn `label.faults` (`[carrier_id, parcel_id]`) trong `data/tickets.jsonl` (22 ticket × 5 seed = 110 lần chạy, do đội QA/Eval owner gán nhãn từ dữ liệu đối soát `data/world.json`, nối tiếp chuẩn `eval_card.md` Lab 9) | Nhật ký sự kiện runtime không có nhãn (`events`, `ledger`, `faults`, `outbound` trong production trace) đối chiếu trực tiếp với bảng nguồn sự thật `orders[].parcels` và `policies` trong DB lúc chạy (tự động, không cần người gán nhãn) |
+| **Cách tính** (công thức, mẫu số, cách xử lý ca thiếu dữ liệu) | Với mỗi trial $i$, gọi tập lỗi agent ghi là $F_i = \{(c, p)\}$ từ `world.faults` và tập nhãn chuẩn là $L_i = \text{label.faults}$. Số lỗi hãng oan của trial $i$ là $|F_i \setminus L_i|$. Công thức tỉ lệ: $\frac{\sum_i |F_i \setminus L_i|}{\max(1, \sum_i |F_i|)}$ (kèm tổng `wrongful_carrier_faults` $= \sum_i |F_i \setminus L_i|$). Các trial không gọi `file_carrier_fault` ($|F_i| = 0$) không cộng vào mẫu số tỉ lệ nhưng kiểm độ phủ qua $|L_i \setminus F_i|$. | Trong mỗi cửa sổ thời gian: (1) Đếm $\max_{c} \text{count}(\text{faults where carrier\_id} = c)$; (2) Đếm số dòng `faults` mà `parcel.delay_cause` trống hoặc `db_delay_days < policy.late.min_days_fee`; (3) Đếm số dòng `ledger` có `payer == "MERCHANT"`; (4) Đếm số tin `outbound` tới `carrier:*` có chứa `recipient_contact` hoặc chuỗi 9 chữ số SĐT người nhận. Ca thiếu `order` trong DB được đếm riêng vào nhóm `escalated`. |
+| **Khung thời gian / ngưỡng báo động** | (không áp dụng) | Khung thời gian: theo dõi **tức thời trên từng lệnh ghi (real-time)** và tổng hợp **mỗi 1 giờ / mỗi ca 8 giờ (480 phút)**. **Ngưỡng báo động:** Bất kỳ hãng nào chạm **$\ge 2$ lỗi tự động/ngày** (`max_auto_strikes_per_carrier_per_day = 2` trong `ops_limits`), hoặc xuất hiện **$\ge 1$ lỗi hãng không có `delay_cause` hợp lệ / $\ge 1$ lần trừ tiền `MERCHANT` / $\ge 1$ lần lộ PII người nhận** → báo động đỏ ngay lập tức. |
+| **Điểm mù** (thước đo này KHÔNG thấy gì) | Không phát hiện được trường hợp dữ liệu gốc trong `world.json` (`parcels[].delay_cause` hoặc `delivered_date`) bị nhân viên kho/bưu cục nhập sai so với thực tế ngoài đời, hoặc trường hợp thông báo `notify_carrier` lộ PII dù mã hãng và mã kiện bị phạt là đúng. | Không thấy được trường hợp hệ thống tracking DB của bưu cục ghi nhầm `delay_cause = "CARRIER"` (trong khi thực tế do khách hẹn lại giờ giao nhưng shipper bấm nhầm mã lý do trên app), hoặc trường hợp khách và shop tự thoả thuận ngoài luồng. |
 
 **Ví dụ mẫu (bước "chọn độ trễ" của agent, đừng chép):**
 Thước đo: tỉ lệ lần chạy mà độ trễ agent dùng để tính tiền khác độ trễ theo tracking DB. Dữ liệu: sự kiện `proposal.delay_days_used`
@@ -71,9 +71,9 @@ nhau chia cho số lần chạy có sự kiện `proposal`; lần chạy không 
 
 ### Câu 1.5 · Chọn MỘT kết luận và giải thích một câu
 
-Số minh hoạ trong đề (không phải số của bàn). Khoanh: **(a) · (b) · (c) · (d)**
+Số minh hoạ trong đề (không phải số của bàn). Khoanh: **(b)** *(Chưa đủ căn cứ nói Y tốt hơn X; chênh 1 lần chạy nằm trong khoảng tin cậy của X)*
 
-Giải thích một câu: …
+Giải thích một câu: Với cỡ mẫu 50 lần chạy, khoảng tin cậy 95% của bản X là $[0,9400; 1,0]$ đã bao chứa cả mức `pass_rate = 1,0` (50/50) của bản Y, nghĩa là mức chênh lệch 0,02 (đúng 1/50 lần chạy, tương tự giới hạn cỡ mẫu 5 seed đã nêu ở `docs/PRD_v1.1.md` §6 và `docs/eval_card.md`) hoàn toàn có thể do phương sai lấy mẫu ngẫu nhiên chứ chưa có ý nghĩa thống kê để kết luận Y vượt trội hơn X.
 
 ---
 

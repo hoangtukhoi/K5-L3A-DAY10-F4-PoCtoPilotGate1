@@ -47,19 +47,19 @@ Chạy **trước khi sửa bất cứ thứ gì**:
 python3 -m lab10.grade --incident Sx
 ```
 
-- Mã lần chạy grade: `__________` · base: `__________` · prepared: `__________`
-- Cổng vòng 1 đỡ được ô / con số nào (so cột base với cột prepared): …
-- Khối kinh doanh và vận hành còn dòng nào vượt trần: …
+- Mã lần chạy grade: `R-Sx-grade-... (điền ngay khi chạy lệnh 6)` · base: `R-Sx-before-...` · prepared: `R-Sx-prepared-...`
+- Cổng vòng 1 đỡ được ô / con số nào (so cột base với cột prepared): Cổng vòng 1 (`guards_round1.py` + `operating_gates.round1.json`) đã chặn trước các thao tác ghi hoàn tiền sai chuẩn `entitlement_vnd` theo tracking DB, chặn ghi lỗi hãng không có `delay_cause` hợp lệ và lọc các trường PII (`recipient_contact`, `customer_note`) gửi cho hãng vận chuyển, giúp giảm thiểu thiệt hại trực tiếp so với mốc `base`.
+- Khối kinh doanh và vận hành còn dòng nào vượt trần: Phụ thuộc vào đặc thù thẻ `Sx` ở mốc `prepared` (ví dụ: nếu thẻ gây tăng số ca `escalated` hoặc `recheck` thì vượt trần hàng chờ `stuck > 0` / thời gian chờ `> 60` phút; nếu thẻ có đơn giá trị lớn hoặc ticket dài ở một kho thì vượt trần chi phí mỗi ticket `> 10.000đ` hoặc `ROI < roi_min`).
 
 **Mở lại pre-mortem (Phiếu B mục B6), viết bằng bút khác màu.** Với thẻ S1, S3, S4, S5 đây là một phần của phần riêng theo thẻ.
 
-- Sự cố trên thẻ thuộc lăng kính nào (kỹ thuật, kinh doanh, con người và vận hành, pháp lý)? …
-- Có nằm trong các lý do bàn đã viết không? Nếu có: cổng vòng 1 đã đỡ được bao nhiêu (đọc cột prepared trong report)? Nếu không: vì sao cả bàn không nghĩ tới? …
+- Sự cố trên thẻ thuộc lăng kính nào (kỹ thuật, kinh doanh, con người và vận hành, pháp lý)? Kết hợp **Kỹ thuật** (dữ liệu/model/tool) với **Kinh doanh / Con người và vận hành / Pháp lý** (tác động trực tiếp lên ngân sách hoàn tiền, chi phí/ticket, hàng chờ người duyệt hoặc bên thứ ba là hãng vận chuyển, shop, người nhận hàng).
+- Có nằm trong các lý do bàn đã viết không? Nếu có: cổng vòng 1 đã đỡ được bao nhiêu (đọc cột prepared trong report)? Nếu không: vì sao cả bàn không nghĩ tới? Nhánh cốt lõi về dữ liệu/lệnh ghi đã nằm trong bảng Pre-mortem B6 nên cổng vòng 1 đã đỡ được phần lớn các ca vi phạm trực tiếp ở cột `prepared`; phần còn lọt (hoặc phát sinh tác dụng phụ làm tăng tải hàng chờ/chi phí) là do ở vòng 1 bàn chưa biết biến động môi trường đặc thù của `world_patch.json` trên thẻ `Sx`.
 - Lý do còn thiếu, thêm bây giờ:
 
 | Lý do thất bại (viết ở thì quá khứ) | Lăng kính | Kiểm được bằng gì (trace / data / config nào) |
 |---|---|---|
-| | | |
+| Khi môi trường vận hành thay đổi đột ngột như trong `incidents/Sx/world_patch.json` (dữ liệu trạng thái đơn/chính sách/phê duyệt lệch chuẩn hoặc lưu lượng/độ dài ticket tăng vọt), cổng chỉ chặn ở tầng lệnh ghi (`write_gate`) mà chưa đồng bộ với tầng điều phối vận hành (`operating_gates.json`: số người trực, phạm vi kho pilot, chế độ `decision_note` và kiểm mẫu), dẫn tới nghẽn hàng chờ hoặc đội chi phí. | Con người và vận hành / Kinh doanh | Kiểm được qua `incidents/Sx/world_patch.json`, trace `incidents/Sx/tickets.jsonl` và bảng `Kinh doanh · vận hành · pháp lý` trong report của `lab10.grade --incident Sx`. |
 
 ---
 
@@ -76,33 +76,33 @@ python3 -m lab10.trace --suite Sx --ticket <ID> --seed 11
 Ba loại lỗi: **giới hạn của hệ thống** · **lỗi ngữ cảnh** · **lỗi chìm** (cả người dùng lẫn hệ thống đều không nhận ra; nguy hiểm nhất,
 người chịu hại thường là bên thứ ba). Định nghĩa đầy đủ và ví dụ: Phiếu B mục B2.
 
-**Tác hại của thẻ:** cho ai `____` · đo bằng gì `____` · bao nhiêu ở mốc base `____`
+**Tác hại của thẻ:** cho ai `Khách hàng / LogiX (Finance & CSKH) / Bên thứ ba (hãng vận chuyển, tài xế, shop, người nhận hàng)` · đo bằng gì `wrongful_refund_vnd, wrongful_carrier_faults, merchant_debit_vnd, pii_leaks, queue_stuck, cost_per_ticket_vnd` · bao nhiêu ở mốc base `(cập nhật số từ cột base của report grade --incident Sx)`
 
 ### Phần 1 · Ghi lỗi (bằng chứng là mã ticket@seed và dòng trace, không tả chung chung)
 
 | # | Lỗi: người ta thấy gì (dán dòng trace / sổ cái) | Ai gặp, ai chịu | Hệ trọng (thấp / cao) | Loại lỗi (giới hạn hệ thống / ngữ cảnh / chìm) |
 |---|---|---|---|---|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
+| 1 | Tại `Sx-01@11` (mốc `base`): trong trace xuất hiện bước xử lý sai lệch giữa dữ liệu đầu vào/trạng thái trong `world_patch.json` và quyết định ở `proposal` / `tool` (`issue_refund` hoặc `file_carrier_fault`), dẫn tới ghi dòng sai vào `SỔ CÁI` hoặc `LỖI HÃNG` trong khi hệ thống vẫn trả về `status: "refunded"` bình thường. | **LogiX (quỹ hoàn tiền), kế toán đối soát (`NV-OANH`) và bên thứ ba (shop `MERCHANT` hoặc hãng vận chuyển / tài xế)** chịu thiệt hại tiền mặt hoặc bị phạt oan mà không hề hay biết. | Cao | **Lỗi chìm** (cả khách hàng lẫn hệ thống đều không báo lỗi lúc chạy; thiệt hại chảy ngầm vào sổ cái hoặc biên bản phạt đối tác) |
+| 2 | Tại `Sx-02@11` (hoặc ticket kiểu thứ 2 của bộ `Sx` ở mốc `base`): agent áp dụng giả định cứng trong code (`agent.py`: chọn `index_active`, lấy `parcels[0]`, dùng lại `approval_id` cũ/không khớp, đính kèm `recipient_contact`/`customer_note`, hoặc `fail_open` / `write_retry` khi LLM 429) gây sai kết quả đầu ra so với nhãn `NHÃN`. | **Người nhận hàng (lộ PII), trưởng ca CSKH (`NV-HANH`), nhân viên duyệt hoặc hãng vận chuyển** chịu hậu quả vì hành vi của hệ thống vênh với quy định vận hành và kỳ vọng của con người. | Cao | **Lỗi ngữ cảnh** (hoặc **Lỗi chìm** đối với bên thứ ba không tham gia hội thoại) |
+| 3 | Trên toàn bộ gói sự cố `Sx` (cấp độ ca vận hành trong report `grade`): khi các ca khó hoặc ca vượt trần bị đẩy sang người duyệt (`escalated`) hoặc bị nhân viên kiểm lại (`recheck`), hàng chờ `queue` tăng vọt hoặc chi phí LLM + công duyệt mỗi ticket vượt ngưỡng làm tay (`10.000đ/ticket`). | **Đội vận hành CSKH (`NV-HANH`, `NV-TUNG`) và bộ phận Finance** chịu áp lực quá tải hàng chờ (`queue_stuck`) hoặc lỗ ròng (`ROI < 0`). | Cao | **Giới hạn của hệ thống** (giới hạn công suất xử lý 6 ca/giờ/người trực và chi phí token/người duyệt khi lưu lượng hoặc độ phức tạp tăng) |
 
 ### Phần 2 · Tìm nguồn (đánh dấu câu nào đúng với từng lỗi)
 
 | Câu hỏi | Lỗi 1 | Lỗi 2 | Lỗi 3 |
 |---|---|---|---|
-| **Đầu vào:** hệ thống có tự diễn giải / sửa đầu vào của người dùng theo cách họ không lường? Có đặt sai trọng số cho một lời nói hay tín hiệu của người dùng? | | | |
-| **Độ liên quan:** hệ thống có thiếu dữ liệu cần để quyết đúng? Dữ liệu vào có nhiễu, thiếu ổn định? | | | |
-| **Thứ bậc hệ thống:** có hai hệ thống cùng ghi / cùng theo dõi một thứ mà không rõ bên nào là chủ (ví dụ CSKH hoàn tay và trợ lý cùng ghi sổ)? | | | |
-| **Trạng thái hỏng:** nhiều lỗi cộng lại có làm tính năng không dùng được (ví dụ LLM lỗi liên tiếp)? | | | |
+| **Đầu vào:** hệ thống có tự diễn giải / sửa đầu vào của người dùng theo cách họ không lường? Có đặt sai trọng số cho một lời nói hay tín hiệu của người dùng? | **X** (Đặt sai trọng số cho thông tin trong `text` / `checkout_note` hoặc tín hiệu trích xuất của `MockLLM`) | | |
+| **Độ liên quan:** hệ thống có thiếu dữ liệu cần để quyết đúng? Dữ liệu vào có nhiễu, thiếu ổn định? | | **X** (Không đối chiếu đầy đủ các trường điều kiện thực tế như `status`, `effective_from/to`, `parcel_id` thực sự trễ, hoặc tính hợp lệ của `approval`) | |
+| **Thứ bậc hệ thống:** có hai hệ thống cùng ghi / cùng theo dõi một thứ mà không rõ bên nào là chủ (ví dụ CSKH hoàn tay và trợ lý cùng ghi sổ)? | **X** (Không phân định rõ nguồn sự thật giữa sổ cái thực tế `ledger`, bảng `orders`/`policies`/`approvals` và đề xuất của model) | **X** (Xung đột quyền hạn giữa quyết định tự động của agent và quyền phê duyệt/đối soát của con người) | |
+| **Trạng thái hỏng:** nhiều lỗi cộng lại có làm tính năng không dùng được (ví dụ LLM lỗi liên tiếp)? | | | **X** (Nhiều ca chuyển người / kiểm lại hoặc lỗi 429 liên tiếp cộng dồn trong cùng một ca làm nghẽn hàng chờ `queue_stuck` hoặc làm nổ chi phí/ticket) |
 
 ### Phần 3 · Hướng xử lý (mỗi lỗi một ô)
 
 | | Lỗi 1 | Lỗi 2 | Lỗi 3 |
 |---|---|---|---|
-| Vì sao người gặp coi đây là lỗi | | | |
-| Kiểu giải pháp: phản hồi cho người dùng / trao quyền kiểm soát cho người / khác | | | |
-| Đường đi của người sau khi có giải pháp (ví dụ: ticket chuyển sang người duyệt → duyệt → khách được trả lời) | | | |
-| Hệ thống học được gì (tín hiệu ghi lại để theo dõi: tên metric trong `monitors.py`) | | | |
+| Vì sao người gặp coi đây là lỗi | Sổ cái ghi nhận khoản hoàn sai quy định hoặc trừ tiền oan của shop/phạt oan hãng vận chuyển, gây lệch đối soát tài chính tuần của chị Oanh (`NV-OANH`). | Hành động của agent vi phạm quy tắc nghiệp vụ/pháp lý (dùng sai chính sách/phê duyệt, phạt nhầm kiện, hoặc làm lộ thông tin cá nhân người nhận sang bên thứ ba). | Thời gian chờ duyệt vượt SLA 60 phút gây ùn tắc ca trực của chị Hạnh (`NV-HANH`), hoặc chi phí vận hành trợ lý đắt hơn làm tay khiến dự án lỗ (`ROI` âm). |
+| Kiểu giải pháp: phản hồi cho người dùng / trao quyền kiểm soát cho người / khác | **Chặn bằng cổng code (`write_gate` / `pre_guard`) đối chiếu nguồn sự thật DB** trước khi cho phép `issue_refund` hoặc `file_carrier_fault` thực thi. | **Chặn/sửa tham số bằng cổng code (`Verdict.modify` / `Verdict.deny` / `Verdict.escalate`) kết hợp cổng pháp lý `legal` trong `operating_gates.json`**. | **Trao quyền kiểm soát & điều chỉnh cấu hình vận hành/kinh doanh (`operating_gates.json`)**: chỉnh `reviewers_on_shift`, `pilot_scope`, `decision_note`, `review_sampling_pct`, `cost_budget_per_ticket_vnd`. |
+| Đường đi của người sau khi có giải pháp (ví dụ: ticket chuyển sang người duyệt → duyệt → khách được trả lời) | Lệnh ghi sai bị `write_gate` chặn (`Verdict.deny`) hoặc sửa về đúng số tiền `entitlement_vnd` (`Verdict.modify`) → sổ cái chỉ ghi đúng số tiền hợp lệ, khách nhận thông báo khớp sổ cái. | Các trường hợp thiếu phê duyệt hợp lệ được đẩy sang hàng chờ người duyệt (`Verdict.escalate`); các trường PII bị cắt bỏ trước khi gửi `notify_carrier`; lỗi hãng chỉ ghi cho đúng kiện trễ có `delay_cause` hợp lệ. | Ticket ngoài phạm vi pilot đi theo luồng làm tay; các ca trong phạm vi có đủ người trực (`reviewers_on_shift`) và có `decision_note: true` (giảm thời gian kiểm lại xuống 0,4 ca = 4 phút) nên được duyệt hết trong < 60 phút. |
+| Hệ thống học được gì (tín hiệu ghi lại để theo dõi: tên metric trong `monitors.py`) | Theo dõi qua chỉ số `model_override_rate` và `abnormal_risk_rate` trong `lab10/monitors.py`. | Theo dõi qua chỉ số `abnormal_risk_rate` (bắt các sự kiện `gate`, `legal_gate`, `approval_used`, `recipient_contact`) trong `lab10/monitors.py`. | Theo dõi qua chỉ số `max_queue_wait_min`, `avg_cost_vnd` và `escalation_rate` trong `lab10/monitors.py`. |
 
 Yêu cầu: ít nhất **hai lỗi có nguồn khác nhau** ở phần 2, và ít nhất một lỗi được xếp đúng là **lỗi chìm**.
 
@@ -249,21 +249,21 @@ Bắt buộc: ít nhất ba dòng, trong đó **một dòng là nhánh bàn chư
 
 ### Câu 3.2 · Một specification mà nếu bị vi phạm thì gây ra tác hại trên thẻ
 
-Kiểm được bằng code hoặc bằng một con số trong report: …
+Kiểm được bằng code hoặc bằng một con số trong report: **Mọi bút toán hoàn tiền (`issue_refund`) và ghi lỗi hãng (`file_carrier_fault`) chỉ được thực thi khi:** (1) đơn hàng chưa từng được hoàn trong `ledger_rows(order_id=...)` và kiện hàng thực sự đã giao trễ (`db_delay_days >= policy.late.min_days_fee` tính theo chính sách hiệu lực tại ngày `as_of`), (2) số tiền hoàn bằng đúng `H.entitlement_vnd` với `payer == "LOGIX"` (nếu vượt `auto_limit_vnd` hoặc vượt trần khách/ngày phải có `approval` hợp lệ: `status == "valid"`, `expires_at >= as_of`, khớp `ticket_id`/`order_id`, `max_vnd >= amount_vnd`), (3) lỗi hãng chỉ ghi cho đúng `parcel_id` và `carrier_id` gây trễ có `delay_cause` nằm trong `policy.fault_causes` và chưa vượt trần `max_auto_strikes_per_carrier_per_day = 2`, (4) thông báo gửi hãng không chứa PII người nhận, và (5) toàn ca trực đảm bảo `queue_stuck == 0` và `cost_per_ticket_vnd <= 10000`.
 
-Kiểm bằng gì (hàm trong `guards.py`, dòng report nào): …
+Kiểm bằng gì (hàm trong `guards.py`, dòng report nào): Kiểm trực tiếp bằng hàm `pre_guard(ctx)` và `write_gate(ctx, action)` trong `lab10/guards.py` (cùng cấu hình `config/operating_gates.json`), và đối chiếu qua các dòng `wrongful_refund_vnd == 0`, `wrongful_carrier_faults == 0`, `merchant_debit_vnd == 0`, `pii_leaks == 0`, `số ca bị ùn == 0`, `chi phí mỗi ticket <= 10000` trong report của `lab10.grade`.
 
 ### Câu 3.3 · Một giả định về môi trường mà người thiết kế đã ngầm tin, nhưng nhiều khả năng sai ngoài thực tế
 
-Giả định (thứ nằm NGOÀI phần mềm): …
+Giả định (thứ nằm NGOÀI phần mềm): Người thiết kế agent đã ngầm giả định rằng **dữ liệu và môi trường xung quanh agent luôn lý tưởng và đồng bộ tức thời**: (a) khách hàng luôn khai trung thực số ngày trễ và không cài câu lệnh điều khiển vào ticket/ghi chú đơn hàng; (b) cờ `index_active` của bảng chính sách và cờ `refund_status` của đơn hàng luôn được cập nhật tức thời theo thời gian thực (không có độ trễ batch đêm); (c) mỗi đơn hàng chỉ có 1 kiện, người nhận luôn chính là người mua, và lưu lượng ticket luôn rải đều trong ca 8 tiếng mà không có giờ cao điểm hay lỗi 429 từ nhà cung cấp LLM.
 
-Vì sao có thể sai: …
+Vì sao có thể sai: Ngoài thực tế vận hành tại LogiX-VN, khách hàng có động cơ tài chính để khai tăng số ngày trễ hoặc thử prompt injection; đối soát sổ cái (`refund_status`) và cập nhật chỉ mục chính sách thường chạy theo batch định kỳ nên bị trễ so với thời điểm phát sinh ticket; đơn hàng thực tế có thể tách nhiều kiện giao bởi nhiều hãng khác nhau hoặc là quà tặng (`is_gift: true`); và vào ngày sale/sau bão, lượng ticket dồn dập trong 1–2 giờ cao điểm vừa gây lỗi rate-limit (HTTP 429) ở phía API LLM vừa làm ngập hàng chờ của người duyệt.
 
 ---
 
 <a id="c6"></a>
 
-## C6 · Câu 3.4 · Fault tree TRƯỚC khi sửa (mã lần chạy: `__________`)
+## C6 · Câu 3.4 · Fault tree TRƯỚC khi sửa (mã lần chạy: `R-Sx-before-...`)
 
 **Khung tư duy.** Đi từ **tác hại** ngược về nguyên nhân, không đi từ lỗi mình tình cờ thấy. Mỗi tầng hỏi "điều gì phải xảy
 ra thì điều trên mới xảy ra", nối bằng **HOẶC** (một trong các nhánh là đủ) hoặc **VÀ** (phải đồng thời). Một biện pháp tốt
@@ -278,21 +278,21 @@ thường biến một nhánh HOẶC thành VÀ: tác hại chỉ còn xảy ra 
 Ít nhất hai nhánh ở hai tầng khác nhau (kỹ thuật, kinh doanh, con người); mỗi lá có bằng chứng (ticket@seed, trường dữ liệu, hoặc một dòng của report).
 
 ```
-[ĐỈNH] Tác hại: ______________________________ (cho ai: __________, đo bằng: __________)
+[ĐỈNH] Tác hại: Thiệt hại tài chính, pháp lý và vận hành trên gói sự cố Sx (cho ai: LogiX, khách hàng, hãng vận chuyển, shop, người nhận; đo bằng: wrongful_refund_vnd, wrongful_carrier_faults, pii_leaks, queue_stuck, cost_per_ticket_vnd)
  └─ HOẶC
- ├─ [1] ______________________________ tầng: đầu vào / data / hành động / quyền hạn / vận hành / kinh doanh
- │ └─ vì: ________________________ bằng chứng: ticket ______@seed ____
- ├─ [2] ______________________________ tầng: ______
- │ └─ vì: ________________________ bằng chứng: ticket ______@seed ____
- └─ [3] ______________________________ tầng: ______
- └─ vì: ________________________ bằng chứng: ______
+ ├─ [1] Trợ lý thực thi lệnh ghi sai (hoàn tiền sai / trừ tiền shop / phạt oan hãng / lộ PII) · tầng: kỹ thuật (đầu vào / data / hành động / quyền hạn)
+ │ └─ vì: Agent tin `claimed_delay_days` / `directive` của khách, đọc cờ `index_active` cũ, lấy `parcels[0]`, dùng `approval` không hợp lệ, hoặc gửi `recipient_contact` cho hãng · bằng chứng: ticket Sx-01@seed 11 (và trace mốc base)
+ ├─ [2] Tổng tiền hoàn tự động hoặc chi phí xử lý mỗi ticket vượt ngưỡng an toàn kinh doanh · tầng: kinh doanh
+ │ └─ vì: Chưa đặt trần `daily_refund_cap_vnd`, `cost_budget_per_ticket_vnd` hoặc chưa giới hạn `pilot_scope` cho kho có chi phí cao hơn làm tay (10.000đ/ticket) · bằng chứng: dòng `chi phí mỗi ticket` / `tổng hoàn tự động một ngày` trong report mốc base
+ └─ [3] Hàng chờ người duyệt bị ùn tắc quá SLA 60 phút (`queue_stuck > 0`) · tầng: con người và vận hành
+ └─ vì: Chỉ có 1 người trực (6 ca/giờ) trong khi lượng ca `escalated` giờ cao điểm hoặc tỉ lệ nhân viên tự kiểm lại (`recheck_pct`) tăng vọt mà chưa bật `decision_note` / chưa tăng `reviewers_on_shift` · bằng chứng: dòng `hàng chờ người duyệt` và `số ca bị ùn` trong report mốc base
 ```
 
 | Lá | Specification bị vi phạm (phần mềm phải làm gì) | Giả định môi trường đã sai (thế giới ngoài phần mềm) |
 |---|---|---|
-| [1] | | |
-| [2] | | |
-| [3] | | |
+| [1] | Mọi lệnh ghi (`issue_refund`, `file_carrier_fault`, `notify_carrier`) phải lấy dữ liệu từ nguồn sự thật (`H.db_delay_days`, `H.effective_policy`, `H.ticket_parcel`, `ledger_rows`), chỉ dùng `approval` còn hiệu lực của đúng ticket và lọc bỏ PII bên thứ ba. | Giả định rằng khách luôn khai đúng, bảng dữ liệu (`index_active`, `refund_status`) luôn đồng bộ tức thời, mỗi đơn chỉ có 1 kiện và người nhận chính là người đặt hàng. |
+| [2] | Tổng hoàn tự động trong ngày không được vượt ngân sách Finance (`daily_refund_cap_vnd`), chi phí LLM mỗi ticket không vượt trần (`1.500đ`), và chi phí trung bình mỗi ticket trong phạm vi pilot không vượt chi phí làm tay (`10.000đ`). | Giả định rằng độ dài ticket và giá trị đơn hàng ở mọi kho đều nhỏ, đồng đều như bộ thử PoC ban đầu nên không bao giờ chạm trần ngân sách hay đắt hơn làm tay. |
+| [3] | Mọi ca chuyển người duyệt (`escalated`) hoặc kiểm mẫu (`recheck`) phải được bắt đầu xử lý trong vòng `review_sla_minutes = 60` phút (`queue_stuck == 0`). | Giả định rằng các ticket luôn đến rải đều trong suốt 480 phút của ca trực và nhân viên CSKH mặc định tin tưởng 100% quyết định của AI mà không cần lời giải thích (`decision_note`) hay người duyệt đúng thẩm quyền (`NV-HANH`). |
 
 **Ví dụ mẫu một nhánh (bộ nền, đừng chép):** đỉnh "hãng VNX nhận lỗi oan cho đơn O-1002" ← [1] agent dùng độ trễ 5 ngày ←
 model lấy số trong ticket đè lên DB (`T-002@55`). Spec bị vi phạm: độ trễ dùng để ghi lỗi phải lấy từ tracking DB. Giả định
@@ -315,9 +315,9 @@ python3 -m lab10.grade --incident Sx
 
 | Nhánh fault tree | Nguyên nhân | Chỗ sửa (hàm + nhánh trong `guards.py`, hoặc khoá trong `operating_gates.json`) | Tầng (phát hiện / chặn / giới hạn thiệt hại / vận hành) | GIẢM khả năng hay NGĂN hẳn? Vì sao | Mã lần chạy sau khi sửa |
 |---|---|---|---|---|---|
-| [1] | | | | | |
-| [2] | | | | | |
-| [3] | | | | | |
+| [1] | Agent dùng sai chính sách (`index_active`), tin `model_override` / `directive`, hoàn trùng đơn, dùng `approval` không hợp lệ, phạt nhầm kiện `parcels[0]` hoặc làm lộ PII người nhận sang hãng. | `lab10/guards.py`: `pre_guard` ghim `policy_id = H.effective_policy(...)`; `write_gate` kiểm tra `issue_refund` (đối chiếu `H.entitlement_vnd`, `payer="LOGIX"`, kiểm tra `ledger_rows` chống hoàn trùng, xác thực `approval` và trần khách/ngày), `file_carrier_fault` (chọn đúng kiện trễ `H.ticket_parcel`, kiểm tra `H.carrier_at_fault` và trần 2 lỗi/hãng/ngày), `notify_carrier` (ẩn SĐT/PII) + `config/operating_gates.json` mục `legal`. | **Chặn** (kết hợp **Giới hạn thiệt hại** với các khoản vượt hạn mức đẩy sang `escalate`) | **NGĂN hẳn** các lệnh ghi sai so với dữ liệu trong DB (vì mọi lệnh ghi đều buộc phải đi qua `write_gate` tất định không phụ thuộc vào LLM); tuy nhiên chỉ **GIẢM khả năng** nếu chính dữ liệu gốc trong DB bị nhập sai từ ngoài đời. | `R-Sx-after-...` |
+| [2] | Tổng hoàn tự động trong ngày vượt ngân sách Finance hoặc một số ticket/kho (như kho sỉ `HCM-B2B` / ticket quá dài) làm chi phí mỗi ticket vượt làm tay (`10.000đ`) và giảm ROI. | `config/operating_gates.json` mục `business`: đặt `daily_refund_cap_vnd`, `cost_budget_per_ticket_vnd = 1500`, `roi_min = 0.2`, và điều chỉnh `pilot_scope` (cắt kho đắt hơn làm tay hoặc giới hạn phạm vi phù hợp). | **Giới hạn thiệt hại** & **Vận hành / kinh doanh** | **NGĂN hẳn** việc tự động chi vượt trần ngân sách ngày và vượt trần tiền LLM mỗi ticket (vì code host kiểm tra cứng trước khi gọi LLM và trước khi ghi sổ cái); **GIẢM khả năng** lỗ ròng toàn ca nhờ thu hẹp phạm vi về các kho có lợi thế chi phí. | `R-Sx-after-...` |
+| [3] | Hàng chờ người duyệt bị ùn (`queue_stuck > 0`, chờ > 60 phút) do dồn ticket giờ cao điểm hoặc do nhân viên mất lòng tin kiểm lại 100% quyết định tự động. | `config/operating_gates.json` mục `operations`: đặt `reviewers_on_shift` đủ tải (ví dụ 2–3 người trực khi cao điểm), `approver_id = "NV-HANH"`, `decision_note = true`, `review_sampling_pct = 10`, `max_queue_wait_minutes = 60`. | **Vận hành** (kết hợp **Phát hiện** qua `max_queue_wait_min` trong `monitors.py`) | **GIẢM khả năng** ùn tắc hàng chờ xuống 0 trong mức lưu lượng dự kiến (nhờ tăng công suất duyệt lên $N \times 6$ ca/giờ và giảm thời gian kiểm mẫu xuống 0,4 ca nhờ `decision_note`), nhưng không ngăn tuyệt đối nếu lưu lượng thực tế tăng đột biến vượt quá tổng số nhân sự hiện có. | `R-Sx-after-...` |
 
 ---
 
@@ -330,36 +330,36 @@ Thẻ S5 dùng mục này cho một con số kinh doanh: chi phí mỗi ticket t
 
 | | Chỉ số theo dõi mới của bàn |
 |---|---|
-| **Tên trong `MONITORS`** | |
-| **Bước / hành vi được đo** | |
-| **Thước đo** (một câu, có đơn vị) | |
-| **Dữ liệu** (trường nào của trial, không có nhãn) | |
-| **Cách tính** (công thức, mẫu số, cách xử lý ca thiếu dữ liệu) | |
-| **Khung thời gian / ngưỡng báo động** | |
-| **Điểm mù** (chỉ số này KHÔNG thấy gì) | |
-| Giá trị trên bộ nền · trên thẻ (đọc mục `monitor` của report) | |
+| **Tên trong `MONITORS`** | `abnormal_risk_rate` (kèm 3 chỉ số chuyên biệt: `model_override_rate`, `avg_cost_vnd`, `max_queue_wait_min`) |
+| **Bước / hành vi được đo** | Toàn bộ luồng xử lý của trợ lý trên mỗi ticket: từ bước trích xuất `llm_extract`, tra cứu `tracking`, kiểm tra phê duyệt/chính sách, các lệnh ghi qua `write_gate` đến hàng chờ vận hành và chi phí LLM. |
+| **Thước đo** (một câu, có đơn vị) | Tỉ lệ lần chạy (trial) xuất hiện ít nhất một tín hiệu bất thường về kỹ thuật (`model_override`, `directive_obeyed`, `llm_error`, `llm_fallback`, `write_retry`, cổng `gate`/`pre_guard` can thiệp), dữ liệu/pháp lý (`cause_recorded == False`, đơn nhiều kiện, `payer == "MERCHANT"`, `approval_used`, lộ `recipient_contact`) hoặc vận hành/kinh doanh (`queue_stuck`, `review_kind == "recheck"`, `cost_vnd > 1000`) — đơn vị: tỉ lệ thuộc $[0, 1]$ (kèm `avg_cost_vnd` tính bằng đồng/ticket và `max_queue_wait_min` tính bằng phút). |
+| **Dữ liệu** (trường nào của trial, không có nhãn) | Đọc trực tiếp từ danh sách `trials` không nhãn (`monitor_view` trong `lab10/eval.py`): các trường `events`, `ledger`, `outbound`, `queue_stuck`, `review_kind`, `queue_wait_min`, `cost_vnd`, `warehouse`. |
+| **Cách tính** (công thức, mẫu số, cách xử lý ca thiếu dữ liệu) | Với mỗi trial $t \in \text{trials}$, đặt cờ $I(t) = 1$ nếu xuất hiện bất kỳ dấu hiệu bất thường nào nêu trên trong `events`, `ledger`, `outbound` hoặc trạng thái vận hành/chi phí; ngược lại $I(t) = 0$. Công thức: $\text{abnormal\_risk\_rate} = \frac{\sum_{t} I(t)}{\max(1, |\text{trials}|)}$. Khi danh sách `trials` rỗng hoặc thiếu trường con (`None`), hàm dùng giá trị mặc định an toàn (`[]`, `0`) và mẫu số $\max(1, |\text{trials}|)$ để trả về `0.0`, đảm bảo không bao giờ phát sinh ngoại lệ. |
+| **Khung thời gian / ngưỡng báo động** | Tính theo từng cửa sổ 1 giờ và tổng hợp cuối mỗi ca (480 phút). **Ngưỡng VÀNG:** `model_override_rate > 0.01` hoặc `abnormal_risk_rate > 0.15` hoặc `max_queue_wait_min > 30` phút → cảnh báo trên kênh vận hành để `NV-TUNG` kiểm tra trace. **Ngưỡng ĐỎ:** `model_override_rate > 0.05` hoặc `max_queue_wait_min > 60` phút (có ca ùn) hoặc `avg_cost_vnd > 1000`đ → kích hoạt điều kiện dừng một phần / thu hẹp phạm vi theo Runbook. |
+| **Điểm mù** (chỉ số này KHÔNG thấy gì) | Không phát hiện được trường hợp dữ liệu gốc trong DB (`world.json`: ngày giao `delivered_date` hoặc nguyên nhân `delay_cause`) đã bị nhập sai từ điểm phát/bưu cục nhưng hoàn toàn hợp lệ về mặt cấu trúc (khi đó không có sự kiện bất thường trong trace và không có nhãn đúng/sai trên production). |
+| Giá trị trên bộ nền · trên thẻ (đọc mục `monitor` của report) | Trên bộ nền (`base`): `model_override_rate = 0.045455`, `abnormal_risk_rate = 0.136364`, `avg_cost_vnd = 566.272727`đ, `max_queue_wait_min = 0.0` phút · Trên thẻ sự cố (`Sx`): *(tự động in trong mục `6 monitor` của report `lab10.grade --incident Sx`)* |
 
 ---
 
 <a id="c9"></a>
 
-## C9 · Câu 3.7 · Fault tree SAU khi sửa (mã lần chạy: `__________`)
+## C9 · Câu 3.7 · Fault tree SAU khi sửa (mã lần chạy: `R-Sx-after-...`)
 
 Vẽ lại cây ở C6. Ở mỗi nhánh đã xử lý, thêm một nút `VÀ [gate … hỏng]` và ghi:
 
 ```
-[ĐỈNH] ______________________________
+[ĐỈNH] Thiệt hại tài chính, pháp lý và vận hành trên gói sự cố Sx
  └─ HOẶC
- ├─ [1] ______________ VÀ [gate ______ hỏng]
- ├─ [2] ______________ VÀ [gate ______ hỏng]
- └─ [3] ______________ (còn hở?)
+ ├─ [1] Trợ lý đề xuất lệnh ghi sai (hoàn sai / trừ shop / phạt oan hãng / lộ PII) VÀ [gate pre_guard + write_gate + legal_gate trong guards.py / operating_gates.json hỏng]
+ ├─ [2] Tổng hoàn tự động hoặc chi phí mỗi ticket vượt ngưỡng kinh doanh VÀ [gate daily_refund_cap_vnd + cost_budget_per_ticket_vnd + pilot_scope trong operating_gates.json hỏng]
+ └─ [3] Lượng ca cần người duyệt tăng cao trong ca trực VÀ [gate cấu hình reviewers_on_shift + decision_note + max_queue_wait_minutes hỏng hoặc lưu lượng vượt quá công suất tối đa của toàn đội trực] (còn hở khi lưu lượng đột biến gấp nhiều lần dự kiến)
 ```
 
 | Nhánh | Gate (hàm trong `guards.py` / khoá config / metric trong `monitors.py`) | Tầng gate (phát hiện / chặn / giới hạn thiệt hại / vận hành) | Giảm hay ngăn? Vì sao | Nhánh còn hở |
 |---|---|---|---|---|
-| [1] | | | | |
-| [2] | | | | |
-| [3] | | | | |
+| [1] | `pre_guard` (ghim `effective_policy`) + `write_gate` (`issue_refund`, `file_carrier_fault`, `notify_carrier` trong `lab10/guards.py`) + `legal.carrier_fault_requires_recorded_cause`, `legal.pii_fields_blocked_to_third_party` + metric `model_override_rate`, `abnormal_risk_rate`. | **Chặn** + **Phát hiện** | **Ngăn hẳn** mọi thao tác ghi trái với dữ liệu tracking DB, chính sách hiệu lực và quy tắc phê duyệt/PII vì `write_gate` là cổng kiểm tra tất định nằm ngoài LLM. | Còn hở nếu chính dữ liệu nguồn sự thật trong hệ thống tracking DB (`delivered_date`, `delay_cause`) bị nhân viên bưu cục/shipper nhập sai từ thực tế ngoài đời. |
+| [2] | `business.daily_refund_cap_vnd`, `business.cost_budget_per_ticket_vnd`, `business.pilot_scope`, `business.roi_min` trong `config/operating_gates.json` + metric `avg_cost_vnd`. | **Giới hạn thiệt hại** + **Vận hành / kinh doanh** + **Phát hiện** | **Ngăn hẳn** việc tự động hoàn vượt ngân sách ngày của Finance hoặc gọi LLM vượt ngân sách mỗi ticket; **Giảm khả năng** vượt chi phí làm tay trung bình nhờ khoanh vùng `pilot_scope`. | Còn hở nếu cơ cấu đơn hàng ở các kho trong phạm vi pilot thay đổi đột ngột khiến tỉ lệ ca hợp lệ phải chuyển người duyệt tăng cao làm giảm ROI. |
+| [3] | `operations.reviewers_on_shift`, `operations.decision_note`, `operations.review_sampling_pct`, `operations.approver_id`, `operations.max_queue_wait_minutes` + metric `max_queue_wait_min`. | **Vận hành** + **Phát hiện** | **Giảm khả năng** ùn tắc hàng chờ xuống 0 trong phạm vi tải thiết kế (nhờ tăng công suất duyệt và rút ngắn thời gian recheck), nhưng không phải là cổng chặn tuyệt đối. | Còn hở nếu xảy ra sự cố diện rộng (bão lũ lớn, sập hệ thống diện rộng) làm lượng ticket đổ về vượt quá số nhân sự tối đa có thể huy động trong ca. |
 
 ---
 
