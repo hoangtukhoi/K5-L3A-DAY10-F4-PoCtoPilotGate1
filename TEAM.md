@@ -113,3 +113,35 @@ Mỗi thành viên tự viết một mục bên dưới (chép mẫu, đổi ti�
 
 - **Một điều học được:** Cổng bằng code lấy giá trị từ nguồn sự thật (tracking DB, chính sách) rồi sửa lệnh ghi về đúng giá trị hiệu quả hơn là chặn và chuyển người. Cổng vòng 1 chặn hết tiền sai nhưng đẩy 80% ca sang người duyệt, làm chi phí vượt làm tay. Khi chuyển sang sửa `payer` và số tiền, chi phí mỗi ticket giảm từ 20.645đ xuống 7.273đ mà tiền sai vẫn bằng 0.
 - **Một điều còn chưa chắc:** Cổng chỉ đúng khi tracking DB đúng, và cổng đang coi LogiX luôn là bên chi trả. Nếu hợp đồng thật với một số shop quy định shop chịu phí, hoặc điểm phát nhập sai `delay_cause`, cổng này sẽ hoàn sai người chi mà không báo. Bộ kiểm tra ẩn và chính sách `REFUND-v4` (hiệu lực 2026-12-01) cũng chưa được thử.
+
+## NguyenDucMinh-2A202603563
+
+### Phần việc phụ trách
+
+- **Vai trong bàn:** Vận hành và pháp lý (`N4`).
+- **Câu của đề và mục phiếu:**
+  - **Phiếu A:** soát phần con người và vận hành (A1 câu 1.2, A2 câu 1.4, A4 ranh giới đầu ra và ngưỡng số người trực, chi phí).
+  - **Phiếu B:** B4 (câu 2.4, HAZOP vòng 1 trên `file_carrier_fault`), B5 (checklist 9 nhóm việc, mỗi dòng một PIC có tên), B7.5 (câu 2.10, Runbook 1–3), B7.6 (Giờ cao điểm).
+  - **Config:** `config/operating_gates.json` mục `operations` và `legal`.
+  - **Vòng 2 (thẻ S2):** được giao C4 (HAZOP của thẻ) và C11 (checklist, Runbook 4–5).
+
+### Đóng góp cụ thể
+
+- Soát Phiếu A theo góc nhìn vận hành: báo động ở câu 1.4 phải khớp `wrongful_carrier_faults_max = 0` (một khiếu nại phạt oan là đỏ, không phải hai), ghi rõ `cost_per_ticket_vnd_max = 8500` là tổng chi phí mỗi ticket còn trần tiền LLM riêng là 1.500đ, điền ngày xem lại tiêu chí.
+- B4: HAZOP trên `file_carrier_fault` với 5 dòng kỹ thuật (`carrier_id` bị lấy từ lời khách, thiếu `delay_cause`, lỗi thứ 3 của một hãng trong ngày, gửi lặp, hãng hoặc LLM không trả lời) và 4 dòng ngoài kỹ thuật (người duyệt, ngân sách, dữ liệu gửi bên thứ ba, phạm vi pilot).
+- B5: checklist 9 nhóm việc, gán PIC có tên cho từng dòng, đánh dấu dòng nào Xong và dòng nào còn Chưa kèm bằng chứng cần có.
+- Điền `operations` và `legal`: `pic = NV-TUNG`, `approver_id = NV-HANH`, 2 người trực (12 ca mỗi giờ), `max_queue_wait_minutes = 60` bằng SLA, `decision_note = true` và `review_sampling_pct = 10` đúng điều kiện nhân viên đặt trong `data/world.json` mục `staff_behavior`; chặn hai trường `recipient_contact` và `customer_note` ở `notify_carrier` (đúng tên khoá của `payload`), bật `carrier_fault_requires_recorded_cause`. Kiểm bằng `ops.problems()`: không có lỗi.
+- Viết Runbook 1–3 và Giờ cao điểm khớp từng con số trong `operating_gates.json` và ngưỡng đã ký (tên người từ `staff`, ngưỡng VÀNG và ĐỎ, 15 phút từ tín hiệu đỏ đến lúc dừng xong, `NV-TUNG` bấm công tắc).
+- Có dùng trợ lý AI (Claude) để soạn nháp B4, B5 và Runbook. Tôi đối chiếu từng con số và tên người với `data/world.json`, chọn số người trực và tự đặt tên kênh báo tin, nên giải thích được từng giá trị lúc demo.
+- [Điền nếu đã làm: soát C4 và C11 của thẻ S2, ghi phản biện nhận được lúc demo.]
+
+### Bằng chứng
+
+- Commit: `423fe66` (`templates/form-b-evaluation-gates.md`: B4, B5, B7.5, B7.6; `config/operating_gates.json`: `operations`, `legal`).
+- Mã lần chạy dùng cổng vòng 1 có `operations` và `legal` ở trên: prepared `R-base-prepared-20261118-163339-e10dfb`; thẻ S2 after `R-S2-after-20261118-164740-510194` (chi phí 7.273đ, trong trần đã ký 8.500đ).
+- Dòng trong phiếu: Phiếu A mục A1, A2, A4; Phiếu B mục B4, B5, B7.5, B7.6; Phiếu C mục C4, C11.
+
+### Exit ticket
+
+- **Một điều học được:** Phần lớn cổng về con người và pháp lý không cần code mà cần đúng con số và đúng tên người, và chúng phải khớp ba nơi cùng lúc: `operating_gates.json`, Runbook và ngưỡng đã ký. Cổng pháp lý chặn dữ liệu cá nhân chỉ hoạt động nếu gõ đúng tên khoá của `payload` (`recipient_contact`, `customer_note`), nên phải đọc code `notify_carrier` chứ không đoán.
+- **Một điều còn chưa chắc:** Số người trực (2) và ngưỡng VÀNG (30 phút chờ, hàng chờ 6 ca) tôi chọn từ công suất 6 ca mỗi giờ mỗi người mà chưa thử trên lưu lượng thật; kênh `#logix-pilot-alert` cũng là tên tự đặt. Khi lên 12 depot và áp dụng `REFUND-v4` (hạn mức tự động 100.000đ từ 2026-12-01), số người trực này gần như chắc chắn không còn đủ.
