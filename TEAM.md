@@ -52,6 +52,38 @@ Mỗi thành viên tự viết một mục bên dưới (chép mẫu, đổi ti�
 - **Một điều học được:** Một cổng bằng code (`write_gate` đối chiếu nguồn sự thật DB) có thể **ngăn hẳn** hành vi model bịa số hoặc nghe theo prompt injection, nhưng các rủi ro về vận hành/con người (như nghẽn hàng chờ giờ cao điểm hay nhân viên mất lòng tin phải recheck 100%) và kinh doanh (chi phí mỗi ticket theo kho) bắt buộc phải giải quyết bằng cấu hình hệ thống (`operating_gates.json`), quy trình Runbook và quyết định phạm vi pilot khớp bằng chứng.
 - **Một điều còn chưa chắc:** Khi triển khai thật trên production không có nhãn đúng/sai, nếu chính dữ liệu nguồn sự thật trong tracking DB (`delivered_date` hoặc `delay_cause`) bị nhân viên bưu cục nhập sai hoặc cập nhật trễ theo batch thì cả `write_gate` lẫn `monitors.py` đều bị mù — cần cơ chế đối soát chéo định kỳ nào với biên bản của hãng vận chuyển trước Gate 2 để phát hiện sớm độ lệch này.
 
+
+## LeQuangLinh-2A202603583
+
+### Phần việc phụ trách
+
+- **Vai trong bàn:** Sản phẩm và kinh doanh (N3).
+- **Câu hỏi của đề & Mục phiếu phụ trách:**
+  - **Khối 1 (Vòng 1):** Câu 1.1, 1.5, 1.6 — **Phiếu A** (`templates/form-a-criteria.md`: mục A1, A3, A4, A5) và thiết lập/ký tiêu chí chấp nhận.
+  - **Khối 2 (Vòng 1):** Câu 2.3 (Bản đồ dữ liệu & drift), Câu 2.5 (Chủ trì Pre-mortem 4 lăng kính), Câu 2.9 (Cổng kinh doanh), và chủ trì Quyết định Gate 1 v1 — **Phiếu B** (`templates/form-b-evaluation-gates.md`: mục B3, B6, B7.4, B8).
+  - **Khối 3 (Vòng 2):** Câu 3.2 (Specification), Câu 3.5 (Đánh giá tác động chi phí/phạm vi), Câu 3.7 (Risk register) và chủ trì Quyết định Gate 1 v2 — **Phiếu C** (`templates/form-c-incident.md`: mục C5, C7, C10, C12).
+- **File trực tiếp chỉnh sửa:** `config/acceptance_criteria.json`, `config/operating_gates.json` (mục `business`), `templates/form-a-criteria.md`, `templates/form-b-evaluation-gates.md`, `templates/form-c-incident.md`, `TEAM.md`.
+
+### Đóng góp cụ thể
+
+- Xây dựng bộ ngưỡng chất lượng, an toàn và hiệu quả kinh doanh (`pass_rate_min: 0.9`, `pass_k_min: 0.85`, 3 chỉ số an toàn `= 0`, `cost_per_ticket_vnd_max: 8500`, `roi_min: 0.15`), quy tắc ra quyết định 4 nhánh (`decision_rule`) và điều kiện dừng (`stop_condition`) trong `config/acceptance_criteria.json` trước khi chạy bất kỳ lần đánh giá nào.
+- Lập bản đồ dữ liệu đối chiếu nguồn sự thật (`orders[].parcels[]`, `policies[]`, `approvals[]`) và xác định kịch bản policy drift khi chuyển đổi từ `REFUND-v3` sang `REFUND-v4` ngày 2026-12-01 (Phiếu B mục B3).
+- Dẫn dắt thảo luận Pre-mortem 4 lăng kính (Kỹ thuật, Kinh doanh, Con người & Vận hành, Pháp lý) để chọn ra các cổng phòng ngừa trọng tâm cho vòng 1 (Phiếu B mục B6).
+- Thiết lập các thông số cổng kinh doanh trong `config/operating_gates.json` mục `business` (`daily_refund_cap_vnd: 1500000`, `cost_budget_per_ticket_vnd: 8500`, giới hạn `pilot_scope` tại 2 kho đơn lẻ `HN` và `HCM`, `roi_min: 0.15`) kèm lập luận đối chiếu từ `data/world.json` (Phiếu B mục B7.4).
+- Tổng hợp số liệu thực nghiệm các mốc `base`, `prepared`, `after` để chủ trì chốt Quyết định Gate 1 **v1** (Phiếu B mục B8) và **v2** kèm 3 dòng phản biện bắt buộc (Phiếu C mục C12).
+
+### Bằng chứng
+
+- **Mã commit ký tiêu chí:** Commit `Sign acceptance criteria` trên nhánh `main` (khóa bằng `config/acceptance_criteria.lock`).
+- **Dòng trong phiếu:** Phiếu A (mục A1, A3, A4, A5), Phiếu B (mục B3, B6, B7.4, B8), Phiếu C (mục C5, C10, C12).
+- **Mã lần chạy đối chiếu:** Các lần chạy `base · base`, `base · prepared`, và `Sx · after` được ghi nhận trong `runs/journal.jsonl` và bảng nhật ký B0 / C0.
+
+### Exit ticket
+
+- **Một điều học được:** Việc phải chốt và ký cứng ngưỡng tiêu chí chấp nhận (`acceptance_criteria.json`) *trước* khi chạy thử mô hình giúp loại bỏ thiên kiến "sửa đề cho khớp đáp án" (goalpost moving), đồng thời quyết định đưa AI vào pilot không chỉ phụ thuộc vào độ chính xác của model mà còn bị chi phối chặt chẽ bởi bài toán kinh tế (chi phí/ticket so với làm tay, trần ngân sách ngày) và công suất duyệt của con người.
+- **Một điều còn chưa chắc:** Trên dữ liệu giả lập (`world.json`) mọi nguồn tracking đều đồng bộ tức thời, nên vẫn chưa chắc khi triển khai pilot thực tế ở các depot, độ trễ đồng bộ dữ liệu quét mã vận đơn từ các hãng nhỏ (`GHSH`, `DNB`) hoặc sự thay đổi chính sách đột xuất (`REFUND-v4`) sẽ làm tỉ lệ chuyển người duyệt (`escalation_rate`) tăng đột biến đến mức nào.
+
+
 ## HoVaTen-MSSV
 
 ### Phần việc phụ trách
